@@ -30,12 +30,14 @@ public class action {
             System.out.println("has downloaded!" + url);
             return "has downloaded!";
         } else {
-            if (url.contains(".m3u8") || url.contains(".m3u") || url.contains(".M3U8") || url.contains(".M3U") || url.contains(".FLV") || url.contains(".flv")) {
+            if (drb.isUseffmpeg()) {
                 ffmpeg(url, new File(ai + "_" + UUID.randomUUID() + url.substring(url.length() - 6, url.length())), drb.getHeader());
+
 
             } else {
 
                 downloadVideo(url, new File(ai + "_" + UUID.randomUUID() + url.substring(url.length() - 6, url.length())), drb.getHeader());
+
             }
             oldurl.add(url);
             return "OK!" + url;
