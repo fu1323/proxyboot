@@ -23,6 +23,7 @@ public class action {
     AtomicInteger ai = new AtomicInteger(0);
     ArrayList<String> oldurl = new ArrayList<>();
 
+
     @PostMapping("/download")
     public String action(@RequestBody DownloadRequestBean drb) throws NoSuchAlgorithmException, KeyManagementException {
         String url = drb.getUrl();
@@ -32,8 +33,6 @@ public class action {
         } else {
             if (drb.isUseffmpeg()) {
                 ffmpeg(url, new File(ai + "_" + UUID.randomUUID() + url.substring(url.length() - 6, url.length())), drb.getHeader());
-
-
             } else {
 
                 downloadVideo(url, new File(ai + "_" + UUID.randomUUID() + url.substring(url.length() - 6, url.length())), drb.getHeader());
@@ -91,20 +90,26 @@ public class action {
 //        OkHttpClient client = new OkHttpClient();
         Request.Builder requestprep = new Request.Builder()
                 .url(url);
-
-        for (HashMap<String, String> stringStringHashMap : header) {
-            stringStringHashMap.forEach(new BiConsumer<String, String>() {
-                @Override
-                public void accept(String s, String s2) {
-                    if (s.equalsIgnoreCase("Range")) {
-                        s2 = "0-";
-                    }
-                    //System.out.println(s);
-                    // System.out.println(s2);
-                    requestprep.header(s, s2);
-                }
-            });
+        if (header == null) {
+header=new ArrayList<HashMap<String,String>>();
+            HashMap<String, String> stringStringHashMap = new HashMap<>();
+            stringStringHashMap.put("User-agent","Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.4 Safari/605.1.15");
+            header.add(stringStringHashMap);
         }
+            for (HashMap<String, String> stringStringHashMap : header) {
+                stringStringHashMap.forEach(new BiConsumer<String, String>() {
+                    @Override
+                    public void accept(String s, String s2) {
+                        if (s.equalsIgnoreCase("Range")) {
+                            s2 = "0-";
+                        }
+                        //System.out.println(s);
+                        // System.out.println(s2);
+                        requestprep.header(s, s2);
+                    }
+                });
+            }
+
         Request request = null;
         request = requestprep.build();
 /*sec-ch-ua
