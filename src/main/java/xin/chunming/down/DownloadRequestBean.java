@@ -11,4 +11,5 @@ public class DownloadRequestBean {
    private String url;
    private ArrayList<HashMap<String,String>> header;
    private boolean useffmpeg;
+   private boolean keyextract;
 }

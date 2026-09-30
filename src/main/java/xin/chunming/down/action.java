@@ -9,19 +9,21 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 import java.io.*;
+import java.net.Proxy;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 
 @RestController
 public class action {
     AtomicInteger ai = new AtomicInteger(0);
-    ArrayList<String> oldurl = new ArrayList<>();
+    static ArrayList<String> oldurl = new ArrayList<>();
 
 
     @PostMapping("/download")
@@ -33,10 +35,11 @@ public class action {
         } else {
             if (drb.isUseffmpeg()) {
                 ffmpeg(url, new File(ai + "_" + UUID.randomUUID() + url.substring(url.length() - 6, url.length())), drb.getHeader());
+                ai.incrementAndGet();
             } else {
 
                 downloadVideo(url, new File(ai + "_" + UUID.randomUUID() + url.substring(url.length() - 6, url.length())), drb.getHeader());
-
+                ai.incrementAndGet();
             }
             oldurl.add(url);
             return "OK!" + url;
@@ -82,6 +85,8 @@ public class action {
         OkHttpClient client = new OkHttpClient.Builder()
                 .sslSocketFactory(sslContext.getSocketFactory(), (X509TrustManager) trustAllCerts[0])
                 .hostnameVerifier((hostname, session) -> true) // 总是返回 true 表示接受所有域名
+                .readTimeout(100, TimeUnit.SECONDS)
+                .proxy(Proxy.NO_PROXY)
                 .build();
 
 
@@ -91,24 +96,25 @@ public class action {
         Request.Builder requestprep = new Request.Builder()
                 .url(url);
         if (header == null) {
-header=new ArrayList<HashMap<String,String>>();
+            header = new ArrayList<HashMap<String, String>>();
             HashMap<String, String> stringStringHashMap = new HashMap<>();
-            stringStringHashMap.put("User-agent","Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.4 Safari/605.1.15");
+            stringStringHashMap.put("User-agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.4 Safari/605.1.15");
             header.add(stringStringHashMap);
         }
-            for (HashMap<String, String> stringStringHashMap : header) {
-                stringStringHashMap.forEach(new BiConsumer<String, String>() {
-                    @Override
-                    public void accept(String s, String s2) {
-                        if (s.equalsIgnoreCase("Range")) {
-                            s2 = "0-";
-                        }
-                        //System.out.println(s);
-                        // System.out.println(s2);
-                        requestprep.header(s, s2);
+        for (HashMap<String, String> stringStringHashMap : header) {
+
+            stringStringHashMap.forEach(new BiConsumer<String, String>() {
+                @Override
+                public void accept(String s, String s2) {
+                    if (s.equalsIgnoreCase("Range")) {
+                        s2 = "bytes=0-";
                     }
-                });
-            }
+                    //System.out.println(s);
+                    // System.out.println(s2);
+                    requestprep.header(s, s2);
+                }
+            });
+        }
 
         Request request = null;
         request = requestprep.build();
@@ -136,7 +142,7 @@ same-site*/
 
                 // 使用 try-with-resources 自动关闭流
                 try (InputStream is = response.body().byteStream();
-                     FileOutputStream fos = new FileOutputStream(saveFile)) {
+                     FileOutputStream fos = new FileOutputStream(saveFile + ".pdf")) {
 
                     byte[] buffer = new byte[8192]; // 8KB 缓冲区
                     int len;
@@ -146,6 +152,9 @@ same-site*/
                     fos.flush();
                     fos.close();
                     System.out.println("下载完成！");
+                } catch (Exception e) {
+                    oldurl.remove(url);
+                    e.printStackTrace();
                 }
             }
         });
@@ -153,24 +162,40 @@ same-site*/
 
     public static void ffmpeg(String url, File saveFile, ArrayList<HashMap<String, String>> header) {
         final String[] head = {""};
-        for (HashMap<String, String> stringStringHashMap : header) {
+        HashMap<String, String> stringStringHashMa = header.get(0);
+        stringStringHashMa.remove("Host");
+        stringStringHashMa.remove("Accept");
+//            If-None-Match
+        stringStringHashMa.remove("If-None-Match");
+        stringStringHashMa.remove("If-Modified-Since");
+        stringStringHashMa.put("Cookie", "JSESSIONID=EE64B86C0C151E5C40017DC400993C39; JSESSIONID=EE64B86C0C151E5C40017DC400993C39; clientlanguage=zh_CN");
+        //header.set(0, stringStringHashMa);
+
+
+
+
+//        for (HashMap<String, String> stringStringHashMap : header) {
+        HashMap<String, String> stringStringHashMap=stringStringHashMa;
             stringStringHashMap.forEach(new BiConsumer<String, String>() {
                 @Override
                 public void accept(String s, String s2) {
 
                     if (!s.equalsIgnoreCase("range")) {
-                        head[0] += "\"" + s + "\"" + ":" + "\"" + s2 + "\"";
+//                        head[0] += "" + s + "" + ":" + "" + s2 + "\\r\\n";
+
+                        head[0] += s + ":" + s2 + "\r\n";
                     }
 
                 }
             });
-        }
+//        }
 
 
         Thread thread = new Thread(new Runnable() {
             @Override
             public void run() {
-                ProcessBuilder processBuilder = new ProcessBuilder("ffmpeg", "-i", url, "-headers", head[0], "-c", "copy", saveFile.getAbsolutePath() + ".mp4");
+
+                ProcessBuilder processBuilder = new ProcessBuilder("ffmpeg", "-headers", head[0], "-i", url, "-c", "copy", saveFile.getAbsolutePath() + ".mp4");
                 processBuilder.redirectErrorStream(true);
                 try {
                     Process start = processBuilder.start();
