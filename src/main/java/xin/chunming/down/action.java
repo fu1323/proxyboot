@@ -4,6 +4,8 @@ package xin.chunming.down;
 import okhttp3.*;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.bind.annotation.RequestBody;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
@@ -19,12 +21,64 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @RestController
 public class action {
     AtomicInteger ai = new AtomicInteger(0);
     static ArrayList<String> oldurl = new ArrayList<>();
 
+    @PostMapping("/dbg")
+    public String action1(@RequestBody dbgbean bean) throws IOException {
+
+        String doing = unidbgtool.doing(bean.data);
+      //  System.out.println(bean);
+        if (doing == null) {
+            return null;
+        }
+        ObjectMapper objectMapper = new ObjectMapper();
+        JsonNode jsonNode = objectMapper.readTree(doing);
+        String filename = "";
+        JsonNode jsonNode1 = jsonNode.get("data").get("row").get("title");
+        if (jsonNode1!=null){
+            filename=jsonNode1.asString();
+
+        }
+        Pattern pattern = Pattern.compile("https?://[^\\s\"']+?\\.m3u8(?:\\?[^\\s\"']*)?");
+        Matcher matcher = pattern.matcher(doing);
+        String url = null;
+        if (matcher.find()) {
+            url = matcher.group();
+            System.out.println(url);
+        }
+        if (url != null) {
+            if (oldurl.contains(url)) {
+                System.out.println("has downloaded!" + url);
+                return "has downloaded!";
+            }
+            oldurl.add(url);
+            ArrayList<HashMap<String,String>> strings = new ArrayList<>();
+            HashMap<String, String> stringStringHashMap = new HashMap<>();
+
+
+            stringStringHashMap.put("Accept-Encoding", "identity");
+            stringStringHashMap.put("X-JSL-API-AUTH", "ca3a2848d4e4417eb6ebfbffdc1f3212");
+            stringStringHashMap.put("Referer", "https://play.nbaidu.com");
+            strings.add(stringStringHashMap);
+
+          File f =   new File((filename.isBlank()||filename.isEmpty())?UUID.randomUUID().toString():filename);
+            ffmpeg(url,f
+
+
+
+
+                    ,strings);
+
+        }
+        return "OK";
+
+    }
 
     @PostMapping("/download")
     public String action(@RequestBody DownloadRequestBean drb) throws NoSuchAlgorithmException, KeyManagementException {
@@ -153,6 +207,7 @@ same-site*/
                     fos.close();
                     System.out.println("下载完成！");
                 } catch (Exception e) {
+                    System.err.println(url + "error");
                     oldurl.remove(url);
                     e.printStackTrace();
                 }
@@ -172,22 +227,20 @@ same-site*/
         //header.set(0, stringStringHashMa);
 
 
-
-
 //        for (HashMap<String, String> stringStringHashMap : header) {
-        HashMap<String, String> stringStringHashMap=stringStringHashMa;
-            stringStringHashMap.forEach(new BiConsumer<String, String>() {
-                @Override
-                public void accept(String s, String s2) {
+        HashMap<String, String> stringStringHashMap = stringStringHashMa;
+        stringStringHashMap.forEach(new BiConsumer<String, String>() {
+            @Override
+            public void accept(String s, String s2) {
 
-                    if (!s.equalsIgnoreCase("range")) {
+                if (!s.equalsIgnoreCase("range")) {
 //                        head[0] += "" + s + "" + ":" + "" + s2 + "\\r\\n";
 
-                        head[0] += s + ":" + s2 + "\r\n";
-                    }
-
+                    head[0] += s + ":" + s2 + "\r\n";
                 }
-            });
+
+            }
+        });
 //        }
 
 
@@ -208,8 +261,11 @@ same-site*/
                     System.out.println(start.exitValue() + url);
 
                 } catch (IOException e) {
+                    oldurl.remove(url);
                     throw new RuntimeException(e);
                 } catch (InterruptedException e) {
+                    oldurl.remove(url);
+
                     throw new RuntimeException(e);
                 }
 
