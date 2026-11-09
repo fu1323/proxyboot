@@ -42,8 +42,7 @@ public class ActionController {
      *
      * 不再每次 new Thread()。
      */
-    private final ExecutorService ffmpegExecutor =
-            Executors.newFixedThreadPool(3);
+    private final ExecutorService ffmpegExecutor = Executors.newFixedThreadPool(30);
 
     /*
      * OkHttpClient 本身就是线程安全的，
@@ -51,28 +50,19 @@ public class ActionController {
      *
      * 不再关闭 SSL 校验。
      */
-    private final OkHttpClient client = new OkHttpClient.Builder()
-            .readTimeout(100, TimeUnit.SECONDS)
-            .proxy(java.net.Proxy.NO_PROXY)
-            .build();
+    private final OkHttpClient client = new OkHttpClient.Builder().readTimeout(100, TimeUnit.SECONDS).proxy(java.net.Proxy.NO_PROXY).build();
 
     /*
      * 下载目录：
      *
      * 项目运行目录/downloads/
      */
-    private static final Path DOWNLOAD_DIR =
-            Path.of("downloads")
-                    .toAbsolutePath()
-                    .normalize();
+    private static final Path DOWNLOAD_DIR = Path.of("downloads").toAbsolutePath().normalize();
 
     /*
      * m3u8 正则
      */
-    private static final Pattern M3U8_PATTERN =
-            Pattern.compile(
-                    "https?://[^\\s\"']+?\\.m3u8(?:\\?[^\\s\"']*)?"
-            );
+    private static final Pattern M3U8_PATTERN = Pattern.compile("https?://[^\\s\"']+?\\.m3u8(?:\\?[^\\s\"']*)?");
 
     /*
      * 不建议把这些东西硬编码在源码里。
@@ -115,10 +105,7 @@ public class ActionController {
          */
         String filename = "";
 
-        JsonNode titleNode = jsonNode
-                .path("data")
-                .path("row")
-                .path("title");
+        JsonNode titleNode = jsonNode.path("data").path("row").path("title");
 
         if (!titleNode.isMissingNode() && !titleNode.isNull()) {
             filename = titleNode.asString();
@@ -166,28 +153,16 @@ public class ActionController {
         map.put("Referer", "https://play.nbaidu.com");
 
         if (jslApiAuth != null && !jslApiAuth.isBlank()) {
-            map.put(
-                    "X-JSL-API-AUTH",
-                    jslApiAuth
-            );
+            map.put("X-JSL-API-AUTH", jslApiAuth);
         }
 
         headers.add(map);
 
         try {
 
-            File outputBase = createOutputBase(
-                    filename.isBlank()
-                            ? UUID.randomUUID().toString()
-                            : filename.strip(),
-                    ".mp4"
-            );
+            File outputBase = createOutputBase(filename.isBlank() ? UUID.randomUUID().toString() : filename.strip(), ".mp4");
 
-            ffmpegAsync(
-                    url,
-                    outputBase,
-                    headers
-            );
+            ffmpegAsync(url, outputBase, headers);
 
             /*
              * 注意：
@@ -214,18 +189,14 @@ public class ActionController {
     // =========================================================
 
     @PostMapping("/download")
-    public String download(
-            @RequestBody DownloadRequestBean drb
-    ) throws IOException {
+    public String download(@RequestBody DownloadRequestBean drb) throws IOException {
 
         String url = drb.getUrl();
 
         validateHttpUrl(url);
 
         if (!reservedUrls.add(url)) {
-            System.out.println(
-                    "has downloaded/downloading! " + url
-            );
+            System.out.println("has downloaded/downloading! " + url);
 
             return "has downloaded!";
         }
@@ -236,29 +207,15 @@ public class ActionController {
 
             if (drb.isUseffmpeg()) {
 
-                File outputBase = createOutputBase(
-                        id + "_" + UUID.randomUUID(),
-                        ".mp4"
-                );
+                File outputBase = createOutputBase(id + "_" + UUID.randomUUID(), ".mp4");
 
-                ffmpegAsync(
-                        url,
-                        outputBase,
-                        drb.getHeader()
-                );
+                ffmpegAsync(url, outputBase, drb.getHeader());
 
             } else {
 
-                File outputBase = createOutputBase(
-                        id + "_" + UUID.randomUUID(),
-                        ".pdf"
-                );
+                File outputBase = createOutputBase(id + "_" + UUID.randomUUID(), ".pdf");
 
-                downloadVideoAsync(
-                        url,
-                        outputBase,
-                        drb.getHeader()
-                );
+                downloadVideoAsync(url, outputBase, drb.getHeader());
             }
 
             return "OK!" + url;
@@ -277,9 +234,7 @@ public class ActionController {
     // =========================================================
 
     @PostMapping("/downloadm3u8")
-    public String downloadM3u8(
-            @RequestBody DownloadRequestBean drb
-    ) throws IOException {
+    public String downloadM3u8(@RequestBody DownloadRequestBean drb) throws IOException {
 
         String url = drb.getUrl();
 
@@ -287,9 +242,7 @@ public class ActionController {
 
         if (!reservedUrls.add(url)) {
 
-            System.out.println(
-                    "has downloaded/downloading! " + url
-            );
+            System.out.println("has downloaded/downloading! " + url);
 
             return "has downloaded!";
         }
@@ -298,16 +251,9 @@ public class ActionController {
 
         try {
 
-            File outputBase = createOutputBase(
-                    id + "_" + UUID.randomUUID(),
-                    ".mp4"
-            );
+            File outputBase = createOutputBase(id + "_" + UUID.randomUUID(), ".mp4");
 
-            ffmpegAsync(
-                    url,
-                    outputBase,
-                    drb.getHeader()
-            );
+            ffmpegAsync(url, outputBase, drb.getHeader());
 
             return "OK!" + url;
 
@@ -324,36 +270,23 @@ public class ActionController {
     // 普通 HTTP 下载
     // =========================================================
 
-    private void downloadVideoAsync(
-            String url,
-            File saveFile,
-            ArrayList<HashMap<String, String>> header
-    ) {
+    private void downloadVideoAsync(String url, File saveFile, ArrayList<HashMap<String, String>> header) {
 
         System.out.println("下载: " + url);
 
-        Map<String, String> headers =
-                flattenHeaders(header);
+        Map<String, String> headers = flattenHeaders(header);
 
         /*
          * 没 header 时给一个默认 UA。
          */
         if (headers.isEmpty()) {
 
-            headers.put(
-                    "User-Agent",
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
-                            "AppleWebKit/605.1.15 (KHTML, like Gecko) " +
-                            "Version/26.4 Safari/605.1.15"
-            );
+            headers.put("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " + "AppleWebKit/605.1.15 (KHTML, like Gecko) " + "Version/26.4 Safari/605.1.15");
         }
 
-        Request.Builder requestBuilder =
-                new Request.Builder()
-                        .url(url);
+        Request.Builder requestBuilder = new Request.Builder().url(url);
 
-        for (Map.Entry<String, String> entry :
-                headers.entrySet()) {
+        for (Map.Entry<String, String> entry : headers.entrySet()) {
 
             String name = entry.getKey();
             String value = entry.getValue();
@@ -373,131 +306,87 @@ public class ActionController {
                 value = "bytes=0-";
             }
 
-            requestBuilder.header(
-                    name,
-                    value
-            );
+            requestBuilder.header(name, value);
         }
 
         Request request = requestBuilder.build();
 
-        client.newCall(request)
-                .enqueue(
-                        new Callback() {
+        client.newCall(request).enqueue(new Callback() {
 
-                            @Override
-                            public void onFailure(
-                                    Call call,
-                                    IOException e
-                            ) {
+            @Override
+            public void onFailure(Call call, IOException e) {
 
-                                /*
-                                 * 下载失败，
-                                 * 释放这个 URL，
-                                 * 以后允许重新下载。
-                                 */
-                                reservedUrls.remove(url);
+                /*
+                 * 下载失败，
+                 * 释放这个 URL，
+                 * 以后允许重新下载。
+                 */
+                reservedUrls.remove(url);
 
-                                System.err.println(
-                                        "下载失败: " + url
-                                );
+                System.err.println("下载失败: " + url);
 
-                                e.printStackTrace();
-                            }
+                e.printStackTrace();
+            }
 
-                            @Override
-                            public void onResponse(
-                                    Call call,
-                                    Response response
-                            ) {
+            @Override
+            public void onResponse(Call call, Response response) {
 
-                                try (response) {
+                try (response) {
 
-                                    if (!response.isSuccessful()) {
+                    if (!response.isSuccessful()) {
 
-                                        reservedUrls.remove(url);
+                        reservedUrls.remove(url);
 
-                                        System.err.println(
-                                                "HTTP 下载失败: "
-                                                        + response.code()
-                                                        + " "
-                                                        + url
-                                        );
+                        System.err.println("HTTP 下载失败: " + response.code() + " " + url);
 
-                                        return;
-                                    }
+                        return;
+                    }
 
-                                    ResponseBody body =
-                                            response.body();
+                    ResponseBody body = response.body();
 
-                                    if (body == null) {
+                    if (body == null) {
 
-                                        reservedUrls.remove(url);
+                        reservedUrls.remove(url);
 
-                                        System.err.println(
-                                                "响应 body 为空: "
-                                                        + url
-                                        );
+                        System.err.println("响应 body 为空: " + url);
 
-                                        return;
-                                    }
+                        return;
+                    }
 
-                                    File target =
-                                            new File(
-                                                    saveFile.getAbsolutePath()
-                                                            + ".pdf"
-                                            );
+                    File target = new File(saveFile.getAbsolutePath() + ".pdf");
 
-                                    try (
-                                            InputStream is =
-                                                    body.byteStream();
+                    try (InputStream is = body.byteStream();
 
-                                            FileOutputStream fos =
-                                                    new FileOutputStream(target)
-                                    ) {
+                         FileOutputStream fos = new FileOutputStream(target)) {
 
-                                        byte[] buffer =
-                                                new byte[8192];
+                        byte[] buffer = new byte[8192];
 
-                                        int len;
+                        int len;
 
-                                        while (
-                                                (len = is.read(buffer))
-                                                        != -1
-                                        ) {
+                        while ((len = is.read(buffer)) != -1) {
 
-                                            fos.write(
-                                                    buffer,
-                                                    0,
-                                                    len
-                                            );
-                                        }
-                                    }
-
-                                    /*
-                                     * 成功时不 remove。
-                                     *
-                                     * URL 留在 reservedUrls，
-                                     * 表示已经下载过。
-                                     */
-                                    System.out.println(
-                                            "下载完成: "
-                                                    + target.getAbsolutePath()
-                                    );
-
-                                } catch (Exception e) {
-
-                                    reservedUrls.remove(url);
-
-                                    System.err.println(
-                                            url + " 下载失败"
-                                    );
-
-                                    e.printStackTrace();
-                                }
-                            }
+                            fos.write(buffer, 0, len);
                         }
-                );
+                    }
+
+                    /*
+                     * 成功时不 remove。
+                     *
+                     * URL 留在 reservedUrls，
+                     * 表示已经下载过。
+                     */
+                    System.out.println("下载完成: " + target.getAbsolutePath());
+
+                } catch (Exception e) {
+
+                    reservedUrls.remove(url);
+
+                    System.err.println(url + " 下载失败");
+
+                    e.printStackTrace();
+                }
+            }
+        });
     }
 
 
@@ -505,11 +394,7 @@ public class ActionController {
     // FFmpeg 下载
     // =========================================================
 
-    private void ffmpegAsync(
-            String url,
-            File saveFile,
-            ArrayList<HashMap<String, String>> header
-    ) {
+    private void ffmpegAsync(String url, File saveFile, ArrayList<HashMap<String, String>> header) {
 
         /*
          * 在提交线程之前先构造 Header。
@@ -518,18 +403,11 @@ public class ActionController {
          * 可以直接报错，
          * 不会丢到后台线程里。
          */
-        String ffmpegHeaders =
-                buildFfmpegHeaders(header);
+        String ffmpegHeaders = buildFfmpegHeaders(header);
 
         try {
 
-            ffmpegExecutor.submit(
-                    () -> runFfmpeg(
-                            url,
-                            saveFile,
-                            ffmpegHeaders
-                    )
-            );
+            ffmpegExecutor.submit(() -> runFfmpeg(url, saveFile, ffmpegHeaders));
 
         } catch (RejectedExecutionException e) {
 
@@ -540,20 +418,11 @@ public class ActionController {
     }
 
 
-    private void runFfmpeg(
-            String url,
-            File saveFile,
-            String ffmpegHeaders
-    ) {
+    private void runFfmpeg(String url, File saveFile, String ffmpegHeaders) {
 
-        File target =
-                new File(
-                        saveFile.getAbsolutePath()
-                                + ".mp4"
-                );
+        File target = new File(saveFile.getAbsolutePath() + ".mp4");
 
-        List<String> command =
-                new ArrayList<>();
+        List<String> command = new ArrayList<>();
 
         command.add("ffmpeg");
 
@@ -574,20 +443,13 @@ public class ActionController {
 
         command.add(target.getAbsolutePath());
 
-        ProcessBuilder processBuilder =
-                new ProcessBuilder(command);
+        ProcessBuilder processBuilder = new ProcessBuilder(command);
 
         processBuilder.redirectErrorStream(true);
 
-        System.out.println(
-                "启动 FFmpeg:"
-        );
+        System.out.println("启动 FFmpeg:");
 
-        command.forEach(
-                s -> System.out.print(
-                        s + " "
-                )
-        );
+        command.forEach(s -> System.out.print(s + " "));
 
         System.out.println();
 
@@ -607,27 +469,17 @@ public class ActionController {
              * 否则输出缓冲区满了以后
              * ffmpeg 可能阻塞。
              */
-            try (
-                    BufferedReader reader =
-                            new BufferedReader(
-                                    new InputStreamReader(
-                                            process.getInputStream()
-                                    )
-                            )
-            ) {
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
 
                 String line;
 
                 while ((line = reader.readLine()) != null) {
 
-                    System.err.println(
-                            line + " " + url
-                    );
+                    System.err.println(line + " " + url);
                 }
             }
 
-            int exitCode =
-                    process.waitFor();
+            int exitCode = process.waitFor();
 
             if (exitCode == 0) {
 
@@ -637,10 +489,7 @@ public class ActionController {
                  * 不 remove(url)，
                  * URL 留在 Set 中。
                  */
-                System.out.println(
-                        "FFmpeg 下载完成: "
-                                + target.getAbsolutePath()
-                );
+                System.out.println("FFmpeg 下载完成: " + target.getAbsolutePath());
 
             } else {
 
@@ -653,23 +502,14 @@ public class ActionController {
                  */
                 reservedUrls.remove(url);
 
-                System.err.println(
-                        "FFmpeg 下载失败"
-                                + ", exitCode="
-                                + exitCode
-                                + ", url="
-                                + url
-                );
+                System.err.println("FFmpeg 下载失败" + ", exitCode=" + exitCode + ", url=" + url);
             }
 
         } catch (IOException e) {
 
             reservedUrls.remove(url);
 
-            System.err.println(
-                    "无法启动/运行 FFmpeg: "
-                            + url
-            );
+            System.err.println("无法启动/运行 FFmpeg: " + url);
 
             e.printStackTrace();
 
@@ -686,10 +526,7 @@ public class ActionController {
              */
             Thread.currentThread().interrupt();
 
-            System.err.println(
-                    "FFmpeg 线程被中断: "
-                            + url
-            );
+            System.err.println("FFmpeg 线程被中断: " + url);
         }
     }
 
@@ -698,12 +535,9 @@ public class ActionController {
     // FFmpeg Headers
     // =========================================================
 
-    private String buildFfmpegHeaders(
-            ArrayList<HashMap<String, String>> header
-    ) {
+    private String buildFfmpegHeaders(ArrayList<HashMap<String, String>> header) {
 
-        Map<String, String> headers =
-                flattenHeaders(header);
+        Map<String, String> headers = flattenHeaders(header);
 
         /*
          * 如果 application.properties
@@ -712,40 +546,22 @@ public class ActionController {
          *
          * 没配置就保留客户端原来的 Cookie。
          */
-        if (
-                downloadCookie != null
-                        && !downloadCookie.isBlank()
-        ) {
+        if (downloadCookie != null && !downloadCookie.isBlank()) {
 
-            removeHeaderIgnoreCase(
-                    headers,
-                    "Cookie"
-            );
+            removeHeaderIgnoreCase(headers, "Cookie");
 
-            headers.put(
-                    "Cookie",
-                    downloadCookie
-            );
+            headers.put("Cookie", downloadCookie);
         }
 
-        StringBuilder builder =
-                new StringBuilder();
+        StringBuilder builder = new StringBuilder();
 
-        for (
-                Map.Entry<String, String> entry :
-                headers.entrySet()
-        ) {
+        for (Map.Entry<String, String> entry : headers.entrySet()) {
 
-            String name =
-                    entry.getKey();
+            String name = entry.getKey();
 
-            String value =
-                    entry.getValue();
+            String value = entry.getValue();
 
-            if (
-                    name == null
-                            || value == null
-            ) {
+            if (name == null || value == null) {
 
                 continue;
             }
@@ -753,31 +569,14 @@ public class ActionController {
             /*
              * 这些 header 不适合直接复制给 ffmpeg。
              */
-            if (
-                    name.equalsIgnoreCase("Range")
-                            ||
-                            name.equalsIgnoreCase("Host")
-                            ||
-                            name.equalsIgnoreCase("Accept")
-                            ||
-                            name.equalsIgnoreCase("If-None-Match")
-                            ||
-                            name.equalsIgnoreCase("If-Modified-Since")
-            ) {
+            if (name.equalsIgnoreCase("Range") || name.equalsIgnoreCase("Host") || name.equalsIgnoreCase("Accept") || name.equalsIgnoreCase("If-None-Match") || name.equalsIgnoreCase("If-Modified-Since")) {
 
                 continue;
             }
 
-            checkHeader(
-                    name,
-                    value
-            );
+            checkHeader(name, value);
 
-            builder
-                    .append(name)
-                    .append(": ")
-                    .append(value)
-                    .append("\r\n");
+            builder.append(name).append(": ").append(value).append("\r\n");
         }
 
         return builder.toString();
@@ -798,21 +597,15 @@ public class ActionController {
      *
      * 不再只使用 header.get(0)。
      */
-    private Map<String, String> flattenHeaders(
-            ArrayList<HashMap<String, String>> header
-    ) {
+    private Map<String, String> flattenHeaders(ArrayList<HashMap<String, String>> header) {
 
-        Map<String, String> result =
-                new LinkedHashMap<>();
+        Map<String, String> result = new LinkedHashMap<>();
 
         if (header == null) {
             return result;
         }
 
-        for (
-                HashMap<String, String> map :
-                header
-        ) {
+        for (HashMap<String, String> map : header) {
 
             if (map == null) {
                 continue;
@@ -825,19 +618,9 @@ public class ActionController {
     }
 
 
-    private void removeHeaderIgnoreCase(
-            Map<String, String> headers,
-            String name
-    ) {
+    private void removeHeaderIgnoreCase(Map<String, String> headers, String name) {
 
-        headers
-                .keySet()
-                .removeIf(
-                        key ->
-                                key != null
-                                        &&
-                                        key.equalsIgnoreCase(name)
-                );
+        headers.keySet().removeIf(key -> key != null && key.equalsIgnoreCase(name));
     }
 
 
@@ -848,24 +631,11 @@ public class ActionController {
      *
      * 这种 CRLF Header 注入。
      */
-    private void checkHeader(
-            String name,
-            String value
-    ) {
+    private void checkHeader(String name, String value) {
 
-        if (
-                name.contains("\r")
-                        ||
-                        name.contains("\n")
-                        ||
-                        value.contains("\r")
-                        ||
-                        value.contains("\n")
-        ) {
+        if (name.contains("\r") || name.contains("\n") || value.contains("\r") || value.contains("\n")) {
 
-            throw new IllegalArgumentException(
-                    "非法 HTTP Header"
-            );
+            throw new IllegalArgumentException("非法 HTTP Header");
         }
     }
 
@@ -874,19 +644,11 @@ public class ActionController {
     // URL 校验
     // =========================================================
 
-    private void validateHttpUrl(
-            String url
-    ) {
+    private void validateHttpUrl(String url) {
 
-        if (
-                url == null
-                        ||
-                        url.isBlank()
-        ) {
+        if (url == null || url.isBlank()) {
 
-            throw new IllegalArgumentException(
-                    "URL 不能为空"
-            );
+            throw new IllegalArgumentException("URL 不能为空");
         }
 
         URI uri;
@@ -897,35 +659,19 @@ public class ActionController {
 
         } catch (Exception e) {
 
-            throw new IllegalArgumentException(
-                    "非法 URL: " + url,
-                    e
-            );
+            throw new IllegalArgumentException("非法 URL: " + url, e);
         }
 
-        String scheme =
-                uri.getScheme();
+        String scheme = uri.getScheme();
 
-        if (
-                !"http".equalsIgnoreCase(scheme)
-                        &&
-                        !"https".equalsIgnoreCase(scheme)
-        ) {
+        if (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)) {
 
-            throw new IllegalArgumentException(
-                    "只允许 HTTP/HTTPS URL"
-            );
+            throw new IllegalArgumentException("只允许 HTTP/HTTPS URL");
         }
 
-        if (
-                uri.getHost() == null
-                        ||
-                        uri.getHost().isBlank()
-        ) {
+        if (uri.getHost() == null || uri.getHost().isBlank()) {
 
-            throw new IllegalArgumentException(
-                    "URL 没有合法 host"
-            );
+            throw new IllegalArgumentException("URL 没有合法 host");
         }
     }
 
@@ -940,28 +686,15 @@ public class ActionController {
      * 避免两个请求同时检查文件不存在，
      * 最后生成同名文件。
      */
-    private synchronized File createOutputBase(
-            String filename,
-            String extension
-    ) throws IOException {
+    private synchronized File createOutputBase(String filename, String extension) throws IOException {
 
-        Files.createDirectories(
-                DOWNLOAD_DIR
-        );
+        Files.createDirectories(DOWNLOAD_DIR);
 
-        String safeName =
-                sanitizeFilename(filename);
+        String safeName = sanitizeFilename(filename);
 
-        if (
-                safeName.isBlank()
-                        ||
-                        safeName.equals(".")
-                        ||
-                        safeName.equals("..")
-        ) {
+        if (safeName.isBlank() || safeName.equals(".") || safeName.equals("..")) {
 
-            safeName =
-                    UUID.randomUUID().toString();
+            safeName = UUID.randomUUID().toString();
         }
 
         /*
@@ -969,33 +702,20 @@ public class ActionController {
          */
         if (safeName.length() > 150) {
 
-            safeName =
-                    safeName.substring(
-                            0,
-                            150
-                    );
+            safeName = safeName.substring(0, 150);
         }
 
-        Path base =
-                DOWNLOAD_DIR
-                        .resolve(safeName)
-                        .normalize();
+        Path base = DOWNLOAD_DIR.resolve(safeName).normalize();
 
         /*
          * 双重防御 Path Traversal。
          */
         if (!base.startsWith(DOWNLOAD_DIR)) {
 
-            throw new IllegalArgumentException(
-                    "非法文件名"
-            );
+            throw new IllegalArgumentException("非法文件名");
         }
 
-        Path target =
-                Path.of(
-                        base.toString()
-                                + extension
-                );
+        Path target = Path.of(base.toString() + extension);
 
         /*
          * 如果已经有同名文件：
@@ -1011,18 +731,9 @@ public class ActionController {
 
         while (Files.exists(target)) {
 
-            Path newBase =
-                    DOWNLOAD_DIR.resolve(
-                            safeName
-                                    + "_"
-                                    + index
-                    );
+            Path newBase = DOWNLOAD_DIR.resolve(safeName + "_" + index);
 
-            target =
-                    Path.of(
-                            newBase.toString()
-                                    + extension
-                    );
+            target = Path.of(newBase.toString() + extension);
 
             base = newBase;
 
@@ -1033,9 +744,7 @@ public class ActionController {
     }
 
 
-    private String sanitizeFilename(
-            String filename
-    ) {
+    private String sanitizeFilename(String filename) {
 
         if (filename == null) {
             return "";
@@ -1047,12 +756,7 @@ public class ActionController {
          * / 和 \ 最重要，
          * 防止目录穿越。
          */
-        return filename
-                .replaceAll(
-                        "[\\\\/:*?\"<>|\\p{Cntrl}]",
-                        "_"
-                )
-                .strip();
+        return filename.replaceAll("[\\\\/:*?\"<>|\\p{Cntrl}]", "_").strip();
     }
 
 
@@ -1065,13 +769,8 @@ public class ActionController {
 
         ffmpegExecutor.shutdownNow();
 
-        client
-                .dispatcher()
-                .executorService()
-                .shutdown();
+        client.dispatcher().executorService().shutdown();
 
-        client
-                .connectionPool()
-                .evictAll();
+        client.connectionPool().evictAll();
     }
 }
