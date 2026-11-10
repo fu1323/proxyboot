@@ -38,7 +38,7 @@ public class ActionController {
     private final AtomicInteger counter = new AtomicInteger(0);
 
     /*
-     * 限制同时最多跑 3 个 ffmpeg。
+     * 限制同时最多跑 30 个 ffmpeg。
      *
      * 不再每次 new Thread()。
      */
@@ -81,7 +81,7 @@ public class ActionController {
 
 
     // =========================================================
-    // /dbg
+    // /dbg 实验
     // =========================================================
 
     @PostMapping("/dbg")
