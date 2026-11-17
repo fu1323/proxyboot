@@ -110,7 +110,7 @@ public class ActionController {
         if (!titleNode.isMissingNode() && !titleNode.isNull()) {
             filename = titleNode.asString();
         }
-
+        filename = sanitizeFilename(filename);
         /*
          * 提取 m3u8
          */
@@ -213,7 +213,7 @@ public class ActionController {
 
             } else {
 
-                File outputBase = createOutputBase(id + "_" + UUID.randomUUID(), ".pdf");
+                File outputBase = createOutputBase(id + "_" + UUID.randomUUID(), ".mp4");
 
                 downloadVideoAsync(url, outputBase, drb.getHeader());
             }
@@ -269,6 +269,26 @@ public class ActionController {
     // =========================================================
     // 普通 HTTP 下载
     // =========================================================
+
+    //dbg专用
+    public static String sanitizeFileName(String name) {
+        if (name == null) {
+            return "";
+        }
+
+        // 删除 Windows 非法字符及控制字符
+        name = name.replaceAll("[<>:\"/\\\\|?*\\x00-\\x1F]", "");
+
+        // 删除末尾的空格和点（Windows 不允许）
+        name = name.replaceAll("[. ]+$", "");
+
+        // 最多保留 20 个字符
+        if (name.length() > 20) {
+            name = name.substring(0, 20);
+        }
+
+        return name;
+    }
 
     private void downloadVideoAsync(String url, File saveFile, ArrayList<HashMap<String, String>> header) {
 
@@ -353,7 +373,7 @@ public class ActionController {
                         return;
                     }
 
-                    File target = new File(saveFile.getAbsolutePath() + ".pdf");
+                    File target = new File(saveFile.getAbsolutePath() + ".mp4");
 
                     try (InputStream is = body.byteStream();
 
